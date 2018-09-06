@@ -150,7 +150,7 @@ int main( int argc, char** argv )
     
     // 第一张图
     Mat ref = imread( color_image_files[0], 0 );                // gray-scale image 
-    SE3 pose_ref_TWC = poses_TWC[0];
+    SE3 pose_ref_TWC = poses_TWC[0];//第一张图的位姿作为参考位姿
     double init_depth   = 3.0;    // 深度初始值
     double init_cov2    = 3.0;    // 方差初始值 
     Mat depth( height, width, CV_64F, init_depth );             // 深度图
@@ -214,7 +214,7 @@ bool update(const Mat& ref, const Mat& curr, const SE3& T_C_R, Mat& depth, Mat& 
 			// 遍历每个像素
             if ( depth_cov.ptr<double>(y)[x] < min_cov || depth_cov.ptr<double>(y)[x] > max_cov ) // 深度已收敛或发散
                 continue;
-            // 在极线上搜索 (x,y) 的匹配 
+            // 在极线上搜索参考帧中的像素点(x,y)在当前帧中的匹配 
             Vector2d pt_curr; 
             bool ret = epipolarSearch ( 
                 ref, 
@@ -242,10 +242,10 @@ bool update(const Mat& ref, const Mat& curr, const SE3& T_C_R, Mat& depth, Mat& 
 bool epipolarSearch(
     const Mat& ref, const Mat& curr, 
     const SE3& T_C_R, const Vector2d& pt_ref, 
-    const double& depth_mu, const double& depth_cov, 
+    const double& depth_mu, const double& depth_cov, //均值 标准差
     Vector2d& pt_curr )
 {
-    Vector3d f_ref = px2cam( pt_ref );
+    Vector3d f_ref = px2cam( pt_ref );//归一化平面坐标
     f_ref.normalize();
     Vector3d P_ref = f_ref*depth_mu;	// 参考帧的 P 向量
     
@@ -307,7 +307,7 @@ double NCC (
             values_ref.push_back(value_ref);
             values_curr.push_back(value_curr);
         }
-        
+    //窗口内的像素均值    
     mean_ref /= ncc_area;
     mean_curr /= ncc_area;
     
@@ -338,7 +338,7 @@ bool updateDepthFilter(
     Vector3d f_ref = px2cam( pt_ref );
     f_ref.normalize();
     Vector3d f_curr = px2cam( pt_curr );
-    f_curr.normalize();
+    f_curr.normalize();//归一化长度
     
     // 方程
     // d_ref * f_ref = d_cur * ( R_RC * f_cur ) + t_RC
@@ -360,7 +360,7 @@ bool updateDepthFilter(
     Vector3d xm = lambdavec ( 0,0 ) * f_ref;
     Vector3d xn = t + lambdavec ( 1,0 ) * f2;
     Vector3d d_esti = ( xm+xn ) / 2.0;  // 三角化算得的深度向量
-    double depth_estimation = d_esti.norm();   // 深度值
+    double depth_estimation = d_esti.norm();   // 深度值(光心到空间点的距离)
     
     // 计算不确定性（以一个像素为误差）
     Vector3d p = f_ref*depth_estimation;
@@ -378,10 +378,12 @@ bool updateDepthFilter(
     // 高斯融合
     double mu = depth.ptr<double>( int(pt_ref(1,0)) )[ int(pt_ref(0,0)) ];
     double sigma2 = depth_cov.ptr<double>( int(pt_ref(1,0)) )[ int(pt_ref(0,0)) ];
-    
+
+	//融合后的均值与方差
     double mu_fuse = (d_cov2*mu+sigma2*depth_estimation) / ( sigma2+d_cov2);
     double sigma_fuse2 = ( sigma2 * d_cov2 ) / ( sigma2 + d_cov2 );
-    
+
+	//融合
     depth.ptr<double>( int(pt_ref(1,0)) )[ int(pt_ref(0,0)) ] = mu_fuse; 
     depth_cov.ptr<double>( int(pt_ref(1,0)) )[ int(pt_ref(0,0)) ] = sigma_fuse2;
     

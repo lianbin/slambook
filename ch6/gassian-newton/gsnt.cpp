@@ -96,6 +96,9 @@ double Deriv(double(*Func)(const Mat &input, const Mat params), const Mat &input
 	return d;
 }
 
+//input 8x1 
+//outputs 8x 1
+//params 2x1
 void GaussNewton(double(*Func)(const Mat &input, const Mat params),
 				 const Mat &inputs, const Mat &outputs, Mat params)
 {
